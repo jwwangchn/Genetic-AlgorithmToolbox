@@ -162,7 +162,7 @@ vector<int> sus(vector<double> FitnV, int NSel)
 
 	vector<vector<bool>> MtandMf1(Nind,vector<bool>(Nind));
 	vector<vector<bool>> MtandMf2(Nind, vector<bool>(Nind));
-	vector<vector<int>> MfFind(Nind, vector<int>(Nind));
+	vector<vector<double>> MfFind(Nind, vector<double>(Nind));
 	vector<vector<bool>> ans(Nind, vector<bool>(Nind));
 	vector<int> NewChrIx;
 	for (int i = 0; i < Nind; i++)
@@ -177,6 +177,7 @@ vector<int> sus(vector<double> FitnV, int NSel)
 			{
 				MtandMf1[i][j] = false;
 			}
+
 			if (i == 0)
 			{
 				MfFind[i][j] = 0;
@@ -244,6 +245,15 @@ vector<vector<int>> select(vector<vector<int>> Chrom, vector<double> FitnV)
 }
 
 //交叉函数
+vector<int> cumsumInt(vector<int> FitnV)
+{
+	for (int i = 1; i < FitnV.size(); i++)
+	{
+		FitnV[i] = FitnV[i - 1] + FitnV[i];
+	}
+	return FitnV;
+}
+
 vector<vector<int>> xovmp(vector<vector<int>> OldChrom, double Px, int Npt, int Rs)
 {
 	int Nind = OldChrom.size();
@@ -271,21 +281,68 @@ vector<vector<int>> xovmp(vector<vector<int>> OldChrom, double Px, int Npt, int 
 		even.push_back(i + 1);
 		i = i + 2;
 	}
-	vector<vector<double>> Mask(odd.size(), vector<double>(Lind, 1));
+	vector<vector<int>> Mask(odd.size(), vector<int>(Lind, 1));
 	for (int i = 0; i < Mask.size(); i++)
 	{
-		Mask[i] = cumsum(Mask[i]);
+		Mask[i] = cumsumInt(Mask[i]);
 	}
-	vector<vector<double>> xsites(Mask.size(),vector<double>(2));
+	vector<vector<int>> xsites(Mask.size(),vector<int>(2));
 	for (int i = 0; i < Mask.size(); i++)
 	{
 		xsites[i][0] = Mask[i][Lind - 1];
 	}
 	for (int i = 0; i < Mask.size(); i++)
 	{
-		xsites[i][0] + ((int)(Mask[i][Nind] + 1)*DoCross[i] - 1) % (Mask[i][Nind - 1]) + 1;
+		xsites[i][1] = (xsites[i][0] + ((int)(Mask[i][Nind] * (double)rand() / RAND_MAX + 1)*DoCross[i] - 1)) % (Mask[i][Lind - 1]) + 1;
 	}
-	return SelCh;
+	vector<vector<int>> index1(Nind, vector<int>(Lind));
+	vector<vector<int>> index2 = index1;
+	for (int i = 0; i < odd.size(); i++)
+	{
+		for (int j = 0; j < Lind; j++)
+		{
+			if (xsites[i][0] < Mask[i][j])
+			{
+				index1[i][j] = 1;
+			}
+			else
+			{
+				index1[i][j] = 0;
+			}
+
+			if (xsites[i][1] < Mask[i][j])
+			{
+				index2[i][j] = 1;
+			}
+			else
+			{
+				index2[i][j] = 0;
+			}
+			if (index1[i][j] == index2[i][j])
+			{
+				Mask[i][j] = 1;
+			}
+			else
+			{
+				Mask[i][j] = 0;
+			}
+		}
+	}
+	vector<vector<int>> NewChrom = OldChrom;
+	for (int i = 0; i < odd.size(); i++)
+	{
+		for (int j = 0; j < Lind; j++)
+		{
+			NewChrom[odd[i]][j] = OldChrom[odd[i]][j] * Mask[i][j] + OldChrom[even[i]][j] * (1 - Mask[i][j]);
+			NewChrom[even[i]][j] = OldChrom[odd[i]][j] * (1 - Mask[i][j]) + OldChrom[even[i]][j] * (Mask[i][j]);
+		}
+	}
+	if (Nind % 2)
+	{
+		NewChrom = OldChrom;
+	}
+
+	return NewChrom;
 }
 
 vector<vector<int>> xovsp(vector<vector<int>> OldChrom, double XOVR)
@@ -300,15 +357,79 @@ vector<vector<int>> recombin(vector<vector<int>> Chrom, double px)
 	return Chrom;
 }
 
-vector<vector<int>> mut(vector<vector<int>> SelCh, double pm)
+
+//变异函数
+vector<vector<int>> mut(vector<vector<int>> OldChrom, double pm)
 {
-	return SelCh;
+	int Nind = OldChrom.size();
+	int Lind = OldChrom[0].size();
+	vector<vector<int>> BaseM(Nind,vector<int>(Lind,2));
+	vector<vector<int>> NewChrom = OldChrom;
+	int randNum = 0;
+	for (int i = 0; i < Nind; i++)
+	{
+		for (int j = 0; j < Lind; j++)
+		{
+			if ((double)rand() / RAND_MAX < pm)
+			{
+				randNum = 1;
+			}
+			else
+			{
+				randNum = 0;
+			}
+			NewChrom[i][j] = (OldChrom[i][j] + randNum * (int)(((double)rand() / RAND_MAX) + 1)) % (BaseM[i][j]);
+		}
+	}
+	return NewChrom;
+}
+int minNum(int a, int b)
+{
+	if (a < b)
+	{
+		return a;
+	}
+	return b;
+}
+int maxNum(int a, int b)
+{
+	if (a > b)
+	{
+		return a;
+	}
+	return b;
 }
 
-pair<vector<vector<int>>,vector<int>> reins(vector<vector<int>> SelCh, double pm)
+pair<vector<vector<int>>, vector<int>> reins(vector<vector<int>> Chrom, vector<vector<int>> SelCh, vector<int> ObjVCh, vector<int> ObjVSel)
 {
-	pair<vector<vector<int>>, vector<int>> result;
+	int NIND = Chrom.size();
+	int NvarP = Chrom[0].size();
+	int NSEL = SelCh.size();
+	int NvarO = SelCh[0].size();
+	int INSR = 1;
+	int NIns = minNum(maxNum((int)(INSR*NSEL + .5), 1), NIND);
+	vector<node> sortObjVCh(ObjVCh.size());
+	vector<node> sortObjVSel(ObjVSel.size());
+	for (int i = 0; i < ObjVCh.size(); i++)
+	{
+		sortObjVCh[i].date = ObjVCh[i];
+		sortObjVSel[i].date = ObjVSel[i];
+		sortObjVCh[i].No = i;
+		sortObjVSel[i].No = i;
+	}
+	sort(sortObjVCh.begin(), sortObjVCh.end());
+	for (int i = 0; i < NIND; i++)
+	{
+		for (int j = 0; j < NvarP; j++)
+		{
+			Chrom[sortObjVCh[i].No][j] = SelCh[i][j];
+		}
+		ObjVCh[sortObjVCh[i].No] = ObjVSel[i];
+	}
 
+	pair<vector<vector<int>>, vector<int>> result;
+	result.first = Chrom;
+	result.second = ObjVCh;
 	return result;
 }
 
@@ -320,6 +441,17 @@ int main()
 	vector<int> ObjV = {1,2,3,4};
 	double px = 0.1;
 	double pm = 0.1;
+
+	cout << "Chrom" << endl;
+	for (int i = 0; i < Chrom.size(); i++)
+	{
+		for (int j = 0; j < Chrom[0].size(); j++)
+		{
+			cout << Chrom[i][j] << " ";
+		}
+		cout << endl;
+	}
+
 
 	//ranking函数测试
 	vector<double> FitnV = ranking(ObjV);
@@ -339,9 +471,53 @@ int main()
 		}
 		cout << endl;
 	}
+
 	cout << endl;
 	cout << "recombin" << endl;
 	SelCh = recombin(SelCh, px);
+	for (int i = 0; i < SelCh.size(); i++)
+	{
+		for (int j = 0; j < SelCh[0].size(); j++)
+		{
+			cout << SelCh[i][j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+	cout << "mut" << endl;
+	SelCh = mut(SelCh, pm);
+	for (int i = 0; i < SelCh.size(); i++)
+	{
+		for (int j = 0; j < SelCh[0].size(); j++)
+		{
+			cout << SelCh[i][j] << " ";
+		}
+		cout << endl;
+	}
+
+	cout << endl;
+	cout << "reins" << endl;
+	vector<int> ObjVSel = { 4, 3, 2, 1 };
+	pair<vector<vector<int>>, vector<int>> res = reins(Chrom, SelCh, ObjV, ObjVSel);
+	for (int i = 0; i < res.first.size(); i++)
+	{
+		for (int j = 0; j < res.first[0].size(); j++)
+		{
+			cout << res.first[i][j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+	for (int i = 0; i < res.second.size(); i++)
+	{
+
+		cout << res.second[i] << " ";
+
+
+	}
+	cout << endl;
+
+
 	/*vector<vector<int>> reverseMatrix = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 } };
 	vector<vector<int>> reverseMatrixRes(reverseMatrix[0].size(), vector<int>(reverseMatrix.size()));
 	for (int i = 0; i < reverseMatrix.size(); i++)
@@ -350,8 +526,8 @@ int main()
 		{
 			reverseMatrixRes[j][i] = reverseMatrix[i][j];
 		}
-	}
-	*/
+	}*/
+	
 	
 
 	//FitnV = cumsum(FitnV);
